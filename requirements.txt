@@ -1,11 +1,26 @@
+# Extra index สำหรับ PyTorch CPU-only
 --extra-index-url https://download.pytorch.org/whl/cpu
 
+# Streamlit
 streamlit==1.36.0
+
+# PyTorch CPU
 torch==2.8.0+cpu
 torchvision==0.23.0+cpu
+
+# Vision & Transformers
 timm==1.0.11
+
+# Image processing
 pillow==10.0.0
+matplotlib==3.8.1
+numpy==1.26.0
+
+# HTTP requests
 requests==2.31.0
+
+# PyTorch Lightning (ถ้าใช้)
 lightning==2.4.0
-numpy==1.25.2
-matplotlib==3.8.0
+
+# บังคับ reinstall ทุกครั้ง (ลดปัญหา cache)
+--no-cache-dir
