@@ -53,7 +53,7 @@ def vit_attention_rollout(model, img_tensor):
         h.remove()
 
     if not attn_weights:
-        st.warning("ไม่สามารถดึง attention weights จาก ViT ได้ (อาจเป็นเพราะโครงสร้างโมเดล timm ที่ต่างกัน)")
+        st.warning("ไม่สามารถดึง attention weights จาก ViT ได้")
         return None
 
     attn = attn_weights[0]
@@ -78,10 +78,7 @@ def vit_attention_rollout(model, img_tensor):
         return None
 
 def get_transform(model_name):
-    if "vit" in model_name.lower():
-        size = 224
-    else:
-        size = 128
+    size = 224 if "vit" in model_name.lower() else 128
     return transforms.Compose([
         transforms.Resize((size, size)),
         transforms.ToTensor(),
@@ -215,7 +212,7 @@ for cls in CLASS_NAMES:
 all_images.sort()
 
 img_options = [f"{cls}/{os.path.basename(path)}" for cls, path in all_images]
-img_options = ["[อัปโหลดรูปภาพของคุณเอง]"] + img_options  # เพิ่มตัวเลือกอัปโหลด
+img_options = ["[อัปโหลดรูปภาพของคุณเอง]"] + img_options
 
 img_idx = st.selectbox(
     "Select an image from archive or upload",
@@ -224,7 +221,6 @@ img_idx = st.selectbox(
 )
 
 image = None
-
 if img_idx == 0:
     uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
@@ -242,26 +238,22 @@ else:
     else:
         st.error(f"ไฟล์รูปไม่พบ: {img_path}")
 
-# ตรวจสอบว่า image ถูกต้อง
+# ตรวจสอบ image ก่อนใช้งาน
 if image is None or not isinstance(image, Image.Image):
     st.stop()
 
-st.image(image, caption="Selected image", use_container_width=True)
+st.image(np.array(image), caption="Selected image", use_container_width=True)
 
+# ----------------- PREDICTION + GRAD-CAM -----------------
 if st.button("Predict & Show Grad-CAM"):
     transform = get_transform(model_name)
     img_tensor = transform(image).unsqueeze(0)
 
-    if "vit" in model_name.lower():
-        size = 224
-    else:
-        size = 128
-
+    size = 224 if "vit" in model_name.lower() else 128
     unwrapped_model = unwrap_model(model)
     first_conv = get_first_conv_layer(unwrapped_model)
-    if "vit" in model_name.lower():
-        img_tensor = img_tensor  # ViT ใช้ float32
-    else:
+
+    if "vit" not in model_name.lower():
         if first_conv is None:
             st.error("Cannot find first Conv2d layer in model.")
             st.stop()
@@ -274,30 +266,23 @@ if st.button("Predict & Show Grad-CAM"):
         predicted = np.argmax(probabilities)
         pred_class = CLASS_NAMES[predicted]
         confidence = probabilities[predicted]
+
     st.success(f"Prediction: **{pred_class}** ({confidence:.2f})")
 
-    # แสดงตารางความน่าจะเป็น
     st.subheader("Class Probabilities")
     st.dataframe(
-        {
-            "Class": CLASS_NAMES,
-            "Probability": [f"{p:.4f}" for p in probabilities]
-        }
+        {"Class": CLASS_NAMES, "Probability": [f"{p:.4f}" for p in probabilities]}
     )
-    st.bar_chart(
-        {cls: prob for cls, prob in zip(CLASS_NAMES, probabilities)}
-    )
+    st.bar_chart({cls: prob for cls, prob in zip(CLASS_NAMES, probabilities)})
 
-    # Grad-CAM หรือ ViT Attention Map
+    # ----------------- Grad-CAM / Attention Map -----------------
     if "vit" in model_name.lower():
         attn_map = vit_attention_rollout(unwrapped_model, img_tensor)
         if attn_map is not None:
-            img_np = np.array(image.resize((size, size))).astype(np.float32) / 255.0
-            from PIL import Image as PILImage
-            attn_map_resized = np.array(PILImage.fromarray(np.uint8(attn_map * 255)).resize((size, size), resample=PILImage.BILINEAR)) / 255.0
+            img_np = np.array(image.resize((size, size))).astype(np.float32)/255.0
+            attn_map_resized = np.array(Image.fromarray(np.uint8(attn_map*255)).resize((size, size), resample=Image.BILINEAR))/255.0
             attn_color = plt.get_cmap('jet')(attn_map_resized)[..., :3]
-            overlay = (0.5 * img_np + 0.5 * attn_color)
-            overlay = np.clip(overlay, 0, 1)
+            overlay = np.clip(0.5*img_np + 0.5*attn_color, 0, 1)
             st.subheader("ViT Attention Map Visualization")
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -310,13 +295,10 @@ if st.button("Predict & Show Grad-CAM"):
         last_conv = get_last_conv_layer(unwrapped_model, model_name)
         if last_conv is not None:
             cam_np, cam_img = generate_gradcam(unwrapped_model, img_tensor, last_conv, conv_dtype)
-            img_np = np.array(image.resize((size, size))).astype(np.float32) / 255.0
-            heatmap = (cam_np - cam_np.min()) / (cam_np.max() - cam_np.min() + 1e-8)
-            from PIL import Image as PILImage
-            heatmap_resized = np.array(PILImage.fromarray(np.uint8(heatmap * 255)).resize((size, size), resample=PILImage.BILINEAR)) / 255.0
-            heatmap_img = plt.get_cmap('jet')(heatmap_resized)[..., :3]
-            overlay = (0.5 * img_np + 0.5 * heatmap_img)
-            overlay = np.clip(overlay, 0, 1)
+            img_np = np.array(image.resize((size, size))).astype(np.float32)/255.0
+            heatmap = (cam_np - cam_np.min())/(cam_np.max() - cam_np.min() + 1e-8)
+            heatmap_img = plt.get_cmap('jet')(heatmap)[..., :3]
+            overlay = np.clip(0.5*img_np + 0.5*heatmap_img, 0, 1)
             st.subheader("Grad-CAM Visualization")
             col1, col2, col3 = st.columns(3)
             with col1:

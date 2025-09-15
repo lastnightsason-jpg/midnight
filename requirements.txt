@@ -4,8 +4,8 @@ streamlit==1.36.0
 torch==2.8.0+cpu
 torchvision==0.23.0+cpu
 timm==1.0.11
-pillow
-requests
+pillow==10.0.0
+requests==2.31.0
 lightning==2.4.0
-numpy
-matplotlib
+numpy==1.25.2
+matplotlib==3.8.0
