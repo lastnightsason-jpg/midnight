@@ -1,10 +1,18 @@
-pip>=25.2
-streamlit==1.36.0
-rich<14,>=10.14.0
-markdown-it-py==4.0.0
-mdurl==0.1.2
-pygments==2.19.2
-torch==2.8.0
-torchvision==0.23.0
-timm==1.0.11
-Pillow==10.0.0
+# Core
+streamlit>=1.36.0,<2.0
+
+# Rich text and markdown
+rich>=10.14.0,<15
+markdown-it-py>=4.0.0,<5
+mdurl>=0.1.2,<0.2
+pygments>=2.13.0,<3.0
+
+# Images
+Pillow>=9.5.0,<11
+
+# PyTorch
+torch>=2.0.0,<3.0
+torchvision>=0.15.0,<1.0
+
+# Models
+timm>=1.0.0,<2.0
