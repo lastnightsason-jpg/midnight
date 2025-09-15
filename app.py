@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import requests
 import tempfile
+import lightning.fabric
 
 # ----------------- CONFIG -----------------
 MODEL_FILES = {
@@ -192,13 +193,51 @@ def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
     handle_bwd.remove()
     return cam_np, cam_img
 
+def load_model(model_name, model_path_or_url, model_class, *args, **kwargs):
+    """
+    Load a PyTorch model safely: weights-only or full checkpoint.
+    Args:
+        model_name (str): Name for logging.
+        model_path_or_url (str): Local path or URL to checkpoint.
+        model_class (type): The model class to instantiate.
+        *args, **kwargs: Arguments for model_class.
+    Returns:
+        model: Loaded PyTorch model.
+    """
+    import requests
+    import pickle
+
+    # ตรวจสอบว่าเป็น URL หรือไฟล์ local
+    if str(model_path_or_url).startswith("http"):
+        r = requests.get(model_path_or_url)
+        r.raise_for_status()
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(r.content)
+            tmp_path = f.name
+    else:
+        tmp_path = model_path_or_url
+
+    # พยายามโหลดแบบ weights_only=True ก่อน
+    try:
+        state = torch.load(tmp_path, map_location="cpu", weights_only=True)
+        model = model_class(*args, **kwargs)
+        model.load_state_dict(state)
+        st.info(f"Loaded weights-only checkpoint for {model_name}")
+        return model
+
+    except (RuntimeError, pickle.UnpicklingError) as e:
+        st.warning(f"Loading full checkpoint for {model_name} due to: {e}")
+        with torch.serialization.safe_globals([lightning.fabric.wrappers._FabricModule]):
+            model = torch.load(tmp_path, map_location="cpu", weights_only=False)
+        return model
+
 # ----------------- STREAMLIT UI -----------------
 st.title("White Blood Cell Classifier with Grad-CAM")
 
 # เลือกโมเดล
 model_name = st.selectbox("Select Model", list(MODEL_FILES.keys()))
 model_path = MODEL_FILES[model_name]
-model = load_model(model_name, model_path)
+model = load_model(model_name, model_path, MyModelClass)
 
 # เลือกรูปจาก archive หรืออัปโหลด
 all_images = []
