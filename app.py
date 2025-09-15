@@ -105,16 +105,15 @@ def load_model(model_name, model_path):
     else:
         raise ValueError("Unknown model type")
 
-    # โหลดจาก URL หรือ local path
     if model_path.startswith("http"):
         r = requests.get(model_path)
         r.raise_for_status()
         with tempfile.NamedTemporaryFile(delete=False) as f:
             f.write(r.content)
             tmp_path = f.name
-        state = torch.load(tmp_path, map_location="cpu", weights_only=False)
+        state = torch.load(tmp_path, map_location="cpu")
     else:
-        state = torch.load(model_path, map_location="cpu", weights_only=False)
+        state = torch.load(model_path, map_location="cpu")
 
     if isinstance(state, dict) and "state_dict" in state:
         model.load_state_dict(state["state_dict"])
@@ -196,12 +195,12 @@ def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
 # ----------------- STREAMLIT UI -----------------
 st.title("White Blood Cell Classifier with Grad-CAM")
 
-# 1. เลือกโมเดล
+# เลือกโมเดล
 model_name = st.selectbox("Select Model", list(MODEL_FILES.keys()))
 model_path = MODEL_FILES[model_name]
 model = load_model(model_name, model_path)
 
-# ----------------- เลือกรูปจาก archive หรืออัปโหลด -----------------
+# เลือกรูปจาก archive หรืออัปโหลด
 all_images = []
 for cls in CLASS_NAMES:
     folder = os.path.join(IMG_ROOT, cls)
@@ -214,11 +213,9 @@ all_images.sort()
 img_options = [f"{cls}/{os.path.basename(path)}" for cls, path in all_images]
 img_options = ["[อัปโหลดรูปภาพของคุณเอง]"] + img_options
 
-img_idx = st.selectbox(
-    "Select an image from archive or upload",
-    range(len(img_options)),
-    format_func=lambda i: img_options[i]
-)
+img_idx = st.selectbox("Select an image from archive or upload",
+                       range(len(img_options)),
+                       format_func=lambda i: img_options[i])
 
 image = None
 if img_idx == 0:
@@ -238,11 +235,10 @@ else:
     else:
         st.error(f"ไฟล์รูปไม่พบ: {img_path}")
 
-# ตรวจสอบ image ก่อนใช้งาน
 if image is None or not isinstance(image, Image.Image):
     st.stop()
 
-st.image(np.array(image), caption="Selected image", use_container_width=True)
+st.image(image, caption="Selected image", use_container_width=True)
 
 # ----------------- PREDICTION + GRAD-CAM -----------------
 if st.button("Predict & Show Grad-CAM"):
@@ -268,14 +264,11 @@ if st.button("Predict & Show Grad-CAM"):
         confidence = probabilities[predicted]
 
     st.success(f"Prediction: **{pred_class}** ({confidence:.2f})")
-
     st.subheader("Class Probabilities")
-    st.dataframe(
-        {"Class": CLASS_NAMES, "Probability": [f"{p:.4f}" for p in probabilities]}
-    )
+    st.dataframe({"Class": CLASS_NAMES, "Probability": [f"{p:.4f}" for p in probabilities]})
     st.bar_chart({cls: prob for cls, prob in zip(CLASS_NAMES, probabilities)})
 
-    # ----------------- Grad-CAM / Attention Map -----------------
+    # Grad-CAM / Attention Map
     if "vit" in model_name.lower():
         attn_map = vit_attention_rollout(unwrapped_model, img_tensor)
         if attn_map is not None:
@@ -285,12 +278,9 @@ if st.button("Predict & Show Grad-CAM"):
             overlay = np.clip(0.5*img_np + 0.5*attn_color, 0, 1)
             st.subheader("ViT Attention Map Visualization")
             col1, col2, col3 = st.columns(3)
-            with col1:
-                st.image(img_np, caption="Input Image", use_container_width=True)
-            with col2:
-                st.image(attn_color, caption="Attention Map", use_container_width=True)
-            with col3:
-                st.image(overlay, caption="Overlay", use_container_width=True)
+            with col1: st.image(img_np, caption="Input Image", use_container_width=True)
+            with col2: st.image(attn_color, caption="Attention Map", use_container_width=True)
+            with col3: st.image(overlay, caption="Overlay", use_container_width=True)
     else:
         last_conv = get_last_conv_layer(unwrapped_model, model_name)
         if last_conv is not None:
@@ -301,13 +291,8 @@ if st.button("Predict & Show Grad-CAM"):
             overlay = np.clip(0.5*img_np + 0.5*heatmap_img, 0, 1)
             st.subheader("Grad-CAM Visualization")
             col1, col2, col3 = st.columns(3)
-            with col1:
-                st.image(img_np, caption="Input Image", use_container_width=True)
-            with col2:
-                st.image(heatmap_img, caption="Grad-CAM Heatmap", use_container_width=True)
-            with col3:
-                st.image(overlay, caption="Overlay", use_container_width=True)
+            with col1: st.image(img_np, caption="Input Image", use_container_width=True)
+            with col2: st.image(heatmap_img, caption="Grad-CAM Heatmap", use_container_width=True)
+            with col3: st.image(overlay, caption="Overlay", use_container_width=True)
         else:
             st.warning("Grad-CAM is not supported for this model.")
-            if "vit" in model_name.lower():
-                st.warning("Grad-CAM is not supported for ViT models. Only class probabilities are shown.")
