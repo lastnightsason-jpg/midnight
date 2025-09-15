@@ -204,7 +204,7 @@ model_name = st.selectbox("Select Model", list(MODEL_FILES.keys()))
 model_path = MODEL_FILES[model_name]
 model = load_model(model_name, model_path)
 
-# 2. เลือกรูปจาก archive หรืออัปโหลด
+# ----------------- เลือกรูปจาก archive หรืออัปโหลด -----------------
 all_images = []
 for cls in CLASS_NAMES:
     folder = os.path.join(IMG_ROOT, cls)
@@ -213,19 +213,38 @@ for cls in CLASS_NAMES:
             if fname.lower().endswith(('.jpg', '.jpeg', '.png')):
                 all_images.append((cls, os.path.join(folder, fname)))
 all_images.sort()
+
 img_options = [f"{cls}/{os.path.basename(path)}" for cls, path in all_images]
 img_options = ["[อัปโหลดรูปภาพของคุณเอง]"] + img_options  # เพิ่มตัวเลือกอัปโหลด
-img_idx = st.selectbox("Select an image from archive or upload", range(len(img_options)), format_func=lambda i: img_options[i])
+
+img_idx = st.selectbox(
+    "Select an image from archive or upload",
+    range(len(img_options)),
+    format_func=lambda i: img_options[i]
+)
+
+image = None
 
 if img_idx == 0:
     uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
-        image = Image.open(uploaded_file).convert("RGB")
-    else:
-        st.stop()
+        try:
+            image = Image.open(uploaded_file).convert("RGB")
+        except Exception as e:
+            st.error(f"ไม่สามารถเปิดไฟล์รูปได้: {e}")
 else:
     img_path = all_images[img_idx-1][1]
-    image = Image.open(img_path).convert("RGB")
+    if os.path.exists(img_path):
+        try:
+            image = Image.open(img_path).convert("RGB")
+        except Exception as e:
+            st.error(f"ไม่สามารถเปิดไฟล์รูปจาก archive ได้: {e}")
+    else:
+        st.error(f"ไฟล์รูปไม่พบ: {img_path}")
+
+# ตรวจสอบว่า image ถูกต้อง
+if image is None or not isinstance(image, Image.Image):
+    st.stop()
 
 st.image(image, caption="Selected image", use_container_width=True)
 
