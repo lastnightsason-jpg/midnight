@@ -1,26 +1,21 @@
-# --------------------------------------------
-# Extra index สำหรับ PyTorch CPU
---extra-index-url https://download.pytorch.org/whl/cpu
-
-# ----------------- Streamlit -----------------
+# Streamlit
 streamlit==1.36.0
 
-# ----------------- PyTorch CPU ----------------
-torch==2.8.0+cpu
-torchvision==0.23.0+cpu
-
-# ----------------- Models & Vision ----------------
-timm==1.0.11
-pillow==10.0.1
-numpy==1.26.0
-matplotlib==3.8.1
-requests==2.31.0
-
-# ----------------- Lightning ----------------
-lightning==2.4.0
-
-# ----------------- Streamlit dependencies (lock versions to avoid conflicts) ----------------
-pygments==2.19.2
+# Rich/Markdown dependencies (compatible with Streamlit 1.36)
+rich==14.1.0
 markdown-it-py==2.2.0
 mdurl==0.1.2
-rich==14.1.0
+pygments==2.19.2
+
+# PyTorch CPU version
+torch==2.8.0+cpu
+torchvision==0.23.0+cpu
+-f https://download.pytorch.org/whl/cpu/torch_stable.html
+
+# Model helper libraries
+timm==1.0.11
+pillow==10.0.0
+numpy==1.26.0
+matplotlib==3.8.0
+requests==2.31.0
+lightning==2.4.0
