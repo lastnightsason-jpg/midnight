@@ -1,28 +1,25 @@
---force-reinstall
+# --------------------------------------------
+# Extra index สำหรับ PyTorch CPU
 --extra-index-url https://download.pytorch.org/whl/cpu
 
-# Streamlit
+# ----------------- Streamlit -----------------
 streamlit==1.36.0
 
-# PyTorch CPU
+# ----------------- PyTorch CPU ----------------
 torch==2.8.0+cpu
 torchvision==0.23.0+cpu
 
-# Vision & Transformers
+# ----------------- Models & Vision ----------------
 timm==1.0.11
-
-# Image processing
 pillow==10.0.1
-matplotlib==3.8.1
 numpy==1.26.0
-
-# HTTP requests
+matplotlib==3.8.1
 requests==2.31.0
 
-# PyTorch Lightning
+# ----------------- Lightning ----------------
 lightning==2.4.0
 
-# Fix Streamlit dependencies
+# ----------------- Streamlit dependencies (lock versions to avoid conflicts) ----------------
 pygments==2.19.2
 markdown-it-py==2.2.0
 mdurl==0.1.2
