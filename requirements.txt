@@ -1,4 +1,4 @@
-# Extra index สำหรับ PyTorch CPU-only
+--force-reinstall
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Streamlit
@@ -12,15 +12,18 @@ torchvision==0.23.0+cpu
 timm==1.0.11
 
 # Image processing
-pillow==10.0.0
+pillow==10.0.1
 matplotlib==3.8.1
 numpy==1.26.0
 
 # HTTP requests
 requests==2.31.0
 
-# PyTorch Lightning (ถ้าใช้)
+# PyTorch Lightning
 lightning==2.4.0
 
-# บังคับ reinstall ทุกครั้ง (ลดปัญหา cache)
---no-cache-dir
+# Fix Streamlit dependencies
+pygments==2.19.2
+markdown-it-py==2.2.0
+mdurl==0.1.2
+rich==14.1.0
