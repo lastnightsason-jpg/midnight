@@ -1,18 +1,20 @@
-# Core
+# Core dependencies
 streamlit>=1.36.0,<2.0
 
-# Rich text and markdown
+# Plotting
+matplotlib
+Pillow>=10.0.0
+
+# Rich text and markdown support
 rich>=10.14.0,<15
 markdown-it-py>=4.0.0,<5
 mdurl>=0.1.2,<0.2
-pygments>=2.13.0,<3.0
+pygments>=2.19.2,<3.0
 
-# Images
-Pillow>=9.5.0,<11
+# PyTorch & computer vision
+torch>=2.8.0,<3.0
+torchvision>=0.23.0,<1.0
+timm>=1.0.11,<2.0
 
-# PyTorch
-torch>=2.0.0,<3.0
-torchvision>=0.15.0,<1.0
-
-# Models
-timm>=1.0.0,<2.0
+# Optional: keep pip up-to-date
+pip>=25.2
