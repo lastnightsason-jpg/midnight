@@ -192,11 +192,31 @@ def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
     handle_bwd.remove()
     return cam_np, cam_img
 
-def load_model(model_name, model_path, model_class, *args, **kwargs):
+def load_model(model_name, model_path, *args, **kwargs):
     """
     Load a PyTorch model from file or URL, no lightning.fabric, no weights_only.
     """
     import requests
+
+
+    # เลือก class ของโมเดลตามชื่อ
+    if "resnet" in model_name.lower():
+        from torchvision.models import resnet50
+        model_class = lambda: resnet50(num_classes=len(CLASS_NAMES))
+    elif "densenet" in model_name.lower():
+        from torchvision.models import densenet121
+        model_class = lambda: densenet121(num_classes=len(CLASS_NAMES))
+    elif "mobilenet" in model_name.lower():
+        from torchvision.models import mobilenet_v3_large
+        model_class = lambda: mobilenet_v3_large(num_classes=len(CLASS_NAMES))
+    elif "efficientnet" in model_name.lower():
+        from torchvision.models import efficientnet_b0
+        model_class = lambda: efficientnet_b0(num_classes=len(CLASS_NAMES))
+    elif "vit" in model_name.lower():
+        import timm
+        model_class = lambda: timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=len(CLASS_NAMES))
+    else:
+        raise ValueError("Unknown model type")
 
     # ตรวจสอบว่าเป็น URL หรือไฟล์ local
     if str(model_path).startswith("http"):
@@ -227,7 +247,7 @@ st.title("White Blood Cell Classifier with Grad-CAM")
 # เลือกโมเดล
 model_name = st.selectbox("Select Model", list(MODEL_FILES.keys()))
 model_path = MODEL_FILES[model_name]
-model = load_model(model_name, model_path, MyModelClass)
+model = load_model(model_name, model_path,)
 
 # เลือกรูปจาก archive หรืออัปโหลด
 all_images = []
