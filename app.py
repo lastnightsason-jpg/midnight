@@ -227,7 +227,7 @@ st.title("White Blood Cell Classifier with Grad-CAM")
 # เลือกโมเดล
 model_name = st.selectbox("Select Model", list(MODEL_FILES.keys()))
 model_path = MODEL_FILES[model_name]
-model = load_model(model_name, model_path, MODEL_FILES[model_name])
+model = load_model(model_name, model_path, MyModelClass)
 
 # เลือกรูปจาก archive หรืออัปโหลด
 all_images = []
