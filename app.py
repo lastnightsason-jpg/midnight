@@ -3,6 +3,7 @@ import torch
 import lightning.fabric.wrappers as lf
 import torchvision.transforms as transforms
 from PIL import Image
+from PIL import Image as PILImage  # สำหรับใช้ resize heatmap
 import os
 import io
 import numpy as np
@@ -328,6 +329,7 @@ if st.button("Predict & Show Grad-CAM"):
         conv_dtype = torch.float32
         img_tensor = img_tensor.to(dtype=conv_dtype)
 
+    # Prediction
     with torch.no_grad():
         outputs = unwrapped_model(img_tensor)
         probabilities = torch.softmax(outputs, dim=1)[0].cpu().numpy()
@@ -339,7 +341,6 @@ if st.button("Predict & Show Grad-CAM"):
     st.subheader("Class Probabilities")
     df_probs = pd.DataFrame({"Class": CLASS_NAMES, "Probability": probabilities})
     st.dataframe(df_probs.style.format({"Probability":"{:.4f}"}))
-    # bar chart expects dataframe or pd.Series
     st.bar_chart(df_probs.set_index("Class"))
 
     # Grad-CAM / Attention Map
@@ -348,8 +349,10 @@ if st.button("Predict & Show Grad-CAM"):
         if attn_map is not None:
             img_np = np.array(image.resize((size, size))).astype(np.float32) / 255.0
             attn_map_resized = np.array(
-                Image.fromarray(np.uint8(attn_map * 255)).resize((size, size), resample=Image.BILINEAR)
-            ) / 255.0
+                PILImage.fromarray((attn_map * 255).astype(np.uint8)).resize(
+                    (size, size), resample=PILImage.BILINEAR
+                )
+            ).astype(np.float32) / 255.0
             attn_color = plt.get_cmap('jet')(attn_map_resized)[..., :3]
             overlay = np.clip(0.5 * img_np + 0.5 * attn_color, 0, 1)
 
@@ -367,9 +370,12 @@ if st.button("Predict & Show Grad-CAM"):
         if last_conv is not None:
             try:
                 cam_np, cam_img = generate_gradcam(unwrapped_model, img_tensor, last_conv, conv_dtype)
-            # ✅ resize cam_np ให้เท่ากับ input image size
+
+                # resize cam_np ให้เท่ากับ input image size
                 cam_resized = np.array(
-                    PILImage.fromarray((cam_np * 255).astype(np.uint8)).resize((size, size), resample=PILImage.BILINEAR)
+                    PILImage.fromarray((cam_np * 255).astype(np.uint8)).resize(
+                        (size, size), resample=PILImage.BILINEAR
+                    )
                 ).astype(np.float32) / 255.0
 
                 img_np = np.array(image.resize((size, size))).astype(np.float32) / 255.0
