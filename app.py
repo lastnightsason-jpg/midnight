@@ -1,6 +1,5 @@
 import streamlit as st
 import torch
-from lightning.fabric.wrappers import _FabricModule
 import torchvision.transforms as transforms
 from PIL import Image
 import os
@@ -9,7 +8,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import requests
 import tempfile
-
 
 # ----------------- CONFIG -----------------
 MODEL_FILES = {
@@ -33,11 +31,7 @@ def load_model_state(model_name, model_path):
         buffer = model_path
 
     # โหลด state
-    from lightning.fabric.wrappers import _FabricModule
-    # โหลด checkpoint โดย allowlist Lightning wrapper
-    with torch.serialization.add_safe_globals([_FabricModule]):
-    state = torch.load(tmp_path, map_location="cpu", weights_only=False)
-
+    state = torch.load(buffer, map_location="cpu")
 
     # สร้างโมเดล class
     if "resnet" in model_name.lower():
@@ -196,26 +190,6 @@ def load_model(model_name, model_path):
             tmp_path = f.name
     else:
         tmp_path = model_path
-
-    # โหลด checkpoint โดย allowlist Lightning wrapper
-    with torch.serialization.add_safe_globals([_FabricModule]):
-        state = torch.load(tmp_path, map_location="cpu", weights_only=False)
-
-    # โหลด state_dict
-    if isinstance(state, dict) and "state_dict" in state:
-        model = model_class()
-        ckpt = state["state_dict"]
-        ckpt = {k.replace("model.", ""): v for k, v in ckpt.items()}
-        model.load_state_dict(ckpt, strict=False)
-    elif isinstance(state, dict) and any("weight" in k or "bias" in k for k in state.keys()):
-        model = model_class()
-        model.load_state_dict(state, strict=False)
-    else:
-        model = state  # full model
-
-    model.eval()
-    return model
-
 
 def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
     img_tensor = img_tensor.to(dtype=conv_dtype).requires_grad_()
