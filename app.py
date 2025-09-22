@@ -254,7 +254,45 @@ st.title("White Blood Cell Classifier with Grad-CAM")
 # เลือกโมเดล
 model_name = st.selectbox("Select Model", list(MODEL_FILES.keys()))
 model_path = MODEL_FILES[model_name]
-model = load_model(model_name, model_path,)
+
+def load_model(model_name, model_path):
+    import torch, requests, tempfile
+    # เลือก class โมเดล
+    if "resnet" in model_name.lower():
+        from torchvision.models import resnet50
+        model_class = lambda: resnet50(num_classes=len(CLASS_NAMES))
+    elif "densenet" in model_name.lower():
+        from torchvision.models import densenet121
+        model_class = lambda: densenet121(num_classes=len(CLASS_NAMES))
+    # ... เพิ่ม MobileNet, EfficientNet, ViT
+
+    # โหลดไฟล์จาก URL หรือ local
+    if str(model_path).startswith("http"):
+        r = requests.get(model_path)
+        r.raise_for_status()
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(r.content)
+            tmp_path = f.name
+    else:
+        tmp_path = model_path
+
+    state = torch.load(tmp_path, map_location="cpu")
+    
+    if isinstance(state, dict) and "state_dict" in state:
+        model = model_class()
+        ckpt = state["state_dict"]
+        ckpt = {k.replace("model.", ""): v for k, v in ckpt.items()}
+        model.load_state_dict(ckpt, strict=False)
+    elif isinstance(state, dict) and any("weight" in k or "bias" in k for k in state.keys()):
+        model = model_class()
+        model.load_state_dict(state, strict=False)
+    else:
+        model = state  # full model
+
+    model.eval()
+    return model
+
+
 
 # เลือกรูปจาก archive หรืออัปโหลด
 all_images = []
