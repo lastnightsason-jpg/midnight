@@ -142,11 +142,12 @@ def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
     gradients = []
 
     def forward_hook(module, input, output):
-        activations.append(output.detach())
+        # clone เพื่อป้องกัน view+inplace error
+        activations.append(output.detach().clone())
 
     def backward_hook(module, grad_in, grad_out):
-        # grad_out is a tuple
-        gradients.append(grad_out[0].detach())
+        # clone gradient ด้วย
+        gradients.append(grad_out[0].detach().clone())
 
     handle_fwd = target_layer.register_forward_hook(forward_hook)
     handle_bwd = target_layer.register_full_backward_hook(backward_hook)
@@ -165,14 +166,16 @@ def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
     cam = cam - cam.min()
     cam = cam / (cam.max() + 1e-8)
     cam_np = cam.cpu().numpy()
-    cam_img = np.uint8(cam_np * 255)
-    cam_img = np.stack([cam_img]*3, axis=2)
+
+    # Resize Grad-CAM ให้เท่าขนาด input
     from PIL import Image as PILImage
-    cam_img = PILImage.fromarray(cam_img).resize((128, 128), resample=PILImage.BILINEAR)
+    cam_img = np.stack([cam_np*255]*3, axis=2).astype(np.uint8)
+    cam_img = PILImage.fromarray(cam_img).resize((img_tensor.shape[-1], img_tensor.shape[-2]), resample=PILImage.BILINEAR)
 
     handle_fwd.remove()
     handle_bwd.remove()
     return cam_np, cam_img
+
 
 def vit_attention_rollout(model, img_tensor):
     model.eval()
