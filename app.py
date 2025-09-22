@@ -264,7 +264,17 @@ def load_model(model_name, model_path):
     elif "densenet" in model_name.lower():
         from torchvision.models import densenet121
         model_class = lambda: densenet121(num_classes=len(CLASS_NAMES))
-    # ... เพิ่ม MobileNet, EfficientNet, ViT
+    elif "mobilenet" in model_name.lower():
+        from torchvision.models import mobilenet_v3_large
+        model_class = lambda: mobilenet_v3_large(num_classes=len(CLASS_NAMES))
+    elif "efficientnet" in model_name.lower():
+        from torchvision.models import efficientnet_b0
+        model_class = lambda: efficientnet_b0(num_classes=len(CLASS_NAMES))
+    elif "vit" in model_name.lower():
+        import timm
+        model_class = lambda: timm.create_model("vit_base_patch16_224", pretrained=False, num_classes=len(CLASS_NAMES))
+    else:
+        raise ValueError(f"Unknown model type: {model_name}")
 
     # โหลดไฟล์จาก URL หรือ local
     if str(model_path).startswith("http"):
