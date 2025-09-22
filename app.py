@@ -255,46 +255,14 @@ st.title("White Blood Cell Classifier with Grad-CAM")
 model_name = st.selectbox("Select Model", list(MODEL_FILES.keys()))
 model_path = MODEL_FILES[model_name]
 
-def load_model(model_name, model_path):
-    import torch, requests, tempfile
-    # เลือก class โมเดล
-    if "resnet" in model_name.lower():
-        from torchvision.models import resnet50
-        model_class = lambda: resnet50(num_classes=len(CLASS_NAMES))
-    elif "densenet" in model_name.lower():
-        from torchvision.models import densenet121
-        model_class = lambda: densenet121(num_classes=len(CLASS_NAMES))
-    # ... เพิ่ม MobileNet, EfficientNet, ViT
+# โหลดโมเดลอย่างปลอดภัย
+try:
+    model = load_model(model_name, model_path)
+except Exception as e:
+    st.error(f"โหลดโมเดลไม่สำเร็จ: {e}")
+    st.stop()
 
-    # โหลดไฟล์จาก URL หรือ local
-    if str(model_path).startswith("http"):
-        r = requests.get(model_path)
-        r.raise_for_status()
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.write(r.content)
-            tmp_path = f.name
-    else:
-        tmp_path = model_path
-
-    state = torch.load(tmp_path, map_location="cpu")
-    
-    if isinstance(state, dict) and "state_dict" in state:
-        model = model_class()
-        ckpt = state["state_dict"]
-        ckpt = {k.replace("model.", ""): v for k, v in ckpt.items()}
-        model.load_state_dict(ckpt, strict=False)
-    elif isinstance(state, dict) and any("weight" in k or "bias" in k for k in state.keys()):
-        model = model_class()
-        model.load_state_dict(state, strict=False)
-    else:
-        model = state  # full model
-
-    model.eval()
-    return model
-
-
-
-# เลือกรูปจาก archive หรืออัปโหลด
+# เลือกรูป
 all_images = []
 for cls in CLASS_NAMES:
     folder = os.path.join(IMG_ROOT, cls)
@@ -303,66 +271,36 @@ for cls in CLASS_NAMES:
             if fname.lower().endswith(('.jpg', '.jpeg', '.png')):
                 all_images.append((cls, os.path.join(folder, fname)))
 all_images.sort()
-
-img_options = [f"{cls}/{os.path.basename(path)}" for cls, path in all_images]
-img_options = ["[อัปโหลดรูปภาพของคุณเอง]"] + img_options
-
-img_idx = st.selectbox("Select an image from archive or upload",
-                       range(len(img_options)),
-                       format_func=lambda i: img_options[i])
+img_options = ["[Upload your own]"] + [f"{cls}/{os.path.basename(path)}" for cls, path in all_images]
+img_idx = st.selectbox("Select an image", range(len(img_options)), format_func=lambda i: img_options[i])
 
 image = None
 if img_idx == 0:
-    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
-        try:
-            image = Image.open(uploaded_file).convert("RGB")
-        except Exception as e:
-            st.error(f"ไม่สามารถเปิดไฟล์รูปได้: {e}")
+    uploaded_file = st.file_uploader("Upload an image", type=["jpg","jpeg","png"])
+    if uploaded_file: image = Image.open(uploaded_file).convert("RGB")
 else:
-    img_path = all_images[img_idx-1][1]
-    if os.path.exists(img_path):
-        try:
-            image = Image.open(img_path).convert("RGB")
-        except Exception as e:
-            st.error(f"ไม่สามารถเปิดไฟล์รูปจาก archive ได้: {e}")
-    else:
-        st.error(f"ไฟล์รูปไม่พบ: {img_path}")
+    image = Image.open(all_images[img_idx-1][1]).convert("RGB")
+if image: st.image(image, use_container_width=True)
 
-if image is None or not isinstance(image, Image.Image):
-    st.stop()
-
-st.image(image, caption="Selected image", use_container_width=True)
-
-# ----------------- PREDICTION + GRAD-CAM -----------------
+# ----------------- PREDICTION -----------------
 if st.button("Predict & Show Grad-CAM"):
-    try:
-        # โหลดโมเดล
-        model = load_model(model_name, model_path)
-    except Exception as e:
-        st.error(f"โหลดโมเดลไม่สำเร็จ: {e}")
-        st.stop()
-    
+    if image is None: st.warning("กรุณาเลือกหรืออัปโหลดรูปก่อน"); st.stop()
+
     transform = get_transform(model_name)
     img_tensor = transform(image).unsqueeze(0)
 
-    size = 224 if "vit" in model_name.lower() else 128
     unwrapped_model = unwrap_model(model)
     first_conv = get_first_conv_layer(unwrapped_model)
+    if "vit" not in model_name.lower() and first_conv is not None:
+        img_tensor = img_tensor.to(dtype=first_conv.weight.dtype)
 
-    if "vit" not in model_name.lower():
-        if first_conv is None:
-            st.error("Cannot find first Conv2d layer in model.")
-            st.stop()
-        conv_dtype = first_conv.weight.dtype
-        img_tensor = img_tensor.to(dtype=conv_dtype)
-
+    # prediction
     with torch.no_grad():
         outputs = unwrapped_model(img_tensor)
-        probabilities = torch.softmax(outputs, dim=1)[0].cpu().numpy()
-        predicted = np.argmax(probabilities)
-        pred_class = CLASS_NAMES[predicted]
-        confidence = probabilities[predicted]
+        probs = torch.softmax(outputs, dim=1)[0].cpu().numpy()
+        pred_idx = np.argmax(probs)
+        st.success(f"Prediction: {CLASS_NAMES[pred_idx]} ({probs[pred_idx]:.2f})")
+        st.bar_chart({cls: float(p) for cls, p in zip(CLASS_NAMES, probs)})
 
     st.success(f"Prediction: **{pred_class}** ({confidence:.2f})")
     st.subheader("Class Probabilities")
