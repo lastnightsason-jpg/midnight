@@ -23,18 +23,23 @@ CLASS_NAMES = ["basophil", "eosinophil", "lymphocyte", "monocyte", "neutrophil"]
 IMG_ROOT = "archive/Datasets"
 # ----------------- CONFIG -----------------
 def load_model_state(model_name, model_path):
-    # โหลดไฟล์จาก URL หรือ local
+    import lightning.fabric.wrappers as lf
+
+    # ✅ โหลดไฟล์จาก URL หรือ local
     if str(model_path).startswith("http"):
         r = requests.get(model_path)
         r.raise_for_status()
-        buffer = io.BytesIO(r.content)
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(r.content)
+            tmp_path = f.name
     else:
-        buffer = model_path
+        tmp_path = model_path
 
-    # โหลด state
-    state = torch.load(buffer, map_location="cpu")
+    # ✅ allowlist _FabricModule และบังคับ weights_only=False
+    torch.serialization.add_safe_globals([lf._FabricModule])
+    state = torch.load(tmp_path, map_location="cpu", weights_only=False)
 
-    # สร้างโมเดล class
+    # ✅ สร้างโมเดล class ตามชื่อ
     if "resnet" in model_name.lower():
         from torchvision.models import resnet50
         model = resnet50(num_classes=len(CLASS_NAMES))
@@ -53,32 +58,19 @@ def load_model_state(model_name, model_path):
     else:
         raise ValueError(f"Unknown model type: {model_name}")
 
-    if str(model_path).startswith("http"):
-        r = requests.get(model_path)
-        r.raise_for_status()
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.write(r.content)
-            tmp_path = f.name
-    else:
-        tmp_path = model_path
-
-    # ✅ Allowlist _FabricModule class + force full pickle loading
-    import lightning.fabric.wrappers as lf
-    torch.serialization.add_safe_globals([lf._FabricModule])
-    state = torch.load(tmp_path, map_location="cpu", weights_only=False)
-
-    # โหลด state_dict
+    # ✅ โหลด state_dict หรือ full weights
     if isinstance(state, dict) and "state_dict" in state:
-        ckpt = state["state_dict"]
-        ckpt = {k.replace("model.", ""): v for k, v in ckpt.items()}
+        ckpt = {k.replace("model.", ""): v for k, v in state["state_dict"].items()}
         model.load_state_dict(ckpt, strict=False)
     elif isinstance(state, dict) and any("weight" in k or "bias" in k for k in state.keys()):
         model.load_state_dict(state, strict=False)
     else:
-        raise RuntimeError("โมเดลไฟล์นี้เป็น full model ไม่สามารถใช้กับ Streamlit cache ได้")
+        # ถ้าเป็น full model object (pickled model)
+        model = state
 
     model.eval()
     return model
+
 # ----------------- FUNCTIONS -----------------
 def vit_attention_rollout(model, img_tensor):
     model.eval()
