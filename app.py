@@ -267,10 +267,9 @@ for cls in CLASS_NAMES:
                 all_images.append((cls, os.path.join(folder, fname)))
 all_images.sort()
 
-img_options = [f"{cls}/{os.path.basename(path)}" for cls, path in all_images]
 img_options = ["[อัปโหลดรูปภาพของคุณเอง]"] + img_options
 
-img_idx = st.selectbox("Select an image from archive or upload",
+img_idx = st.selectbox("Select an image from upload",
                        range(len(img_options)),
                        format_func=lambda i: img_options[i])
 
