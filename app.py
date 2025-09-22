@@ -257,25 +257,45 @@ st.title("White Blood Cell Classifier with Grad-CAM")
 model_name = st.selectbox("Select Model", list(MODEL_FILES.keys()))
 model_path = MODEL_FILES[model_name]
 
-t.title("อัปโหลดรูปภาพของคุณ")
+# เลือกรูปจาก archive หรืออัปโหลด
+all_images = []
+for cls in CLASS_NAMES:
+    folder = os.path.join(IMG_ROOT, cls)
+    if os.path.exists(folder):
+        for fname in os.listdir(folder):
+            if fname.lower().endswith(('.jpg', '.jpeg', '.png')):
+                all_images.append((cls, os.path.join(folder, fname)))
+all_images.sort()
 
-# ให้ผู้ใช้เลือกอัปโหลดรูปภาพเท่านั้น
-uploaded_file = st.file_uploader("อัปโหลดรูปภาพ", type=["jpg", "jpeg", "png"])
+img_options = [f"{cls}/{os.path.basename(path)}" for cls, path in all_images]
+img_options = ["[อัปโหลดรูปภาพของคุณเอง]"] + img_options
 
-if uploaded_file is None:
-    st.warning("กรุณาอัปโหลดรูปภาพก่อน")
+img_idx = st.selectbox("Select an image from archive or upload",
+                       range(len(img_options)),
+                       format_func=lambda i: img_options[i])
+
+image = None
+if img_idx == 0:
+    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+    if uploaded_file is not None:
+        try:
+            image = Image.open(uploaded_file).convert("RGB")
+        except Exception as e:
+            st.error(f"ไม่สามารถเปิดไฟล์รูปได้: {e}")
+else:
+    img_path = all_images[img_idx-1][1]
+    if os.path.exists(img_path):
+        try:
+            image = Image.open(img_path).convert("RGB")
+        except Exception as e:
+            st.error(f"ไม่สามารถเปิดไฟล์รูปจาก archive ได้: {e}")
+    else:
+        st.error(f"ไฟล์รูปไม่พบ: {img_path}")
+
+if image is None or not isinstance(image, Image.Image):
     st.stop()
 
-# เปิดรูปภาพ
-try:
-    image = Image.open(uploaded_file).convert("RGB")
-except Exception as e:
-    st.error(f"ไม่สามารถเปิดไฟล์รูปได้: {e}")
-    st.stop()
-
-# แสดงรูปภาพ
-st.image(image, caption="ภาพที่อัปโหลด", use_container_width=True)
-
+st.image(image, caption="Selected image", use_container_width=True)
 # ----------------- PREDICTION + GRAD-CAM -----------------
 if st.button("Predict & Show Grad-CAM"):
     try:
