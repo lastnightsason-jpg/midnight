@@ -85,50 +85,9 @@ def get_transform(model_name):
         transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
     ])
 
-@st.cache_resource
-def load_model(model_name, model_path):
-    if "resnet" in model_name.lower():
-        from torchvision.models import resnet50
-        model = resnet50(num_classes=len(CLASS_NAMES))
-    elif "densenet" in model_name.lower():
-        from torchvision.models import densenet121
-        model = densenet121(num_classes=len(CLASS_NAMES))
-    elif "mobilenet" in model_name.lower():
-        from torchvision.models import mobilenet_v3_large
-        model = mobilenet_v3_large(num_classes=len(CLASS_NAMES))
-    elif "efficientnet" in model_name.lower():
-        from torchvision.models import efficientnet_b0
-        model = efficientnet_b0(num_classes=len(CLASS_NAMES))
-    elif "vit" in model_name.lower():
-        import timm
-        model = timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=len(CLASS_NAMES))
-    else:
-        raise ValueError("Unknown model type")
-
-    if model_path.startswith("http"):
-        r = requests.get(model_path)
-        r.raise_for_status()
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.write(r.content)
-            tmp_path = f.name
-        state = torch.load(tmp_path, map_location="cpu")
-    else:
-        state = torch.load(model_path, map_location="cpu")
-
-    if isinstance(state, dict) and "state_dict" in state:
-        model.load_state_dict(state["state_dict"])
-    elif isinstance(state, dict):
-        model.load_state_dict(state)
-    else:
-        model = state
-
-    model.eval()
-    return model
-
 def unwrap_model(model):
-    for attr in ['model', 'module', '_forward_module']:
-        if hasattr(model, attr):
-            return unwrap_model(getattr(model, attr))
+    if hasattr(model, "module"):
+        return model.module
     return model
 
 def get_first_conv_layer(model):
@@ -154,6 +113,58 @@ def get_last_conv_layer(model, model_name):
         return last_conv
     else:
         return None
+
+@st.cache_resource
+def load_model(model_name, model_path):
+    # เลือก class ของโมเดล
+    if "resnet" in model_name.lower():
+        from torchvision.models import resnet50
+        model_class = lambda: resnet50(num_classes=len(CLASS_NAMES))
+    elif "densenet" in model_name.lower():
+        from torchvision.models import densenet121
+        model_class = lambda: densenet121(num_classes=len(CLASS_NAMES))
+    elif "mobilenet" in model_name.lower():
+        from torchvision.models import mobilenet_v3_large
+        model_class = lambda: mobilenet_v3_large(num_classes=len(CLASS_NAMES))
+    elif "efficientnet" in model_name.lower():
+        from torchvision.models import efficientnet_b0
+        model_class = lambda: efficientnet_b0(num_classes=len(CLASS_NAMES))
+    elif "vit" in model_name.lower():
+        import timm
+        model_class = lambda: timm.create_model("vit_base_patch16_224", pretrained=False, num_classes=len(CLASS_NAMES))
+    else:
+        raise ValueError(f"Unknown model type: {model_name}")
+
+    # โหลดไฟล์จาก URL หรือ local
+    if str(model_path).startswith("http"):
+        r = requests.get(model_path)
+        r.raise_for_status()
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(r.content)
+            tmp_path = f.name
+    else:
+        tmp_path = model_path
+
+    try:
+        state = torch.load(tmp_path, map_location="cpu")
+    except Exception as e:
+        raise RuntimeError(f"โหลดไฟล์โมเดลไม่สำเร็จ: {e}")
+
+        # ถ้าเป็น checkpoint {'state_dict': ...}
+    if isinstance(state, dict) and "state_dict" in state:
+        model = model_class()
+        model.load_state_dict(state["state_dict"], strict=False)
+    # ถ้าเป็น state_dict โดยตรง (keys มี weight/bias)
+    elif isinstance(state, dict) and any("weight" in k or "bias" in k for k in state.keys()):
+        model = model_class()
+        model.load_state_dict(state, strict=False)
+    # ถ้าเป็นโมเดลทั้งตัวที่บันทึกด้วย torch.save(model)
+    else:
+        model = state
+
+    model.eval()
+    return model
+
 
 def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
     img_tensor = img_tensor.to(dtype=conv_dtype).requires_grad_()
@@ -191,55 +202,6 @@ def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
     handle_fwd.remove()
     handle_bwd.remove()
     return cam_np, cam_img
-
-def load_model(model_name, model_path, *args, **kwargs):
-    """
-    Load a PyTorch model from file or URL, no lightning.fabric, no weights_only.
-    """
-    import requests
-
-
-    # เลือก class ของโมเดลตามชื่อ
-    if "resnet" in model_name.lower():
-        from torchvision.models import resnet50
-        model_class = lambda: resnet50(num_classes=len(CLASS_NAMES))
-    elif "densenet" in model_name.lower():
-        from torchvision.models import densenet121
-        model_class = lambda: densenet121(num_classes=len(CLASS_NAMES))
-    elif "mobilenet" in model_name.lower():
-        from torchvision.models import mobilenet_v3_large
-        model_class = lambda: mobilenet_v3_large(num_classes=len(CLASS_NAMES))
-    elif "efficientnet" in model_name.lower():
-        from torchvision.models import efficientnet_b0
-        model_class = lambda: efficientnet_b0(num_classes=len(CLASS_NAMES))
-    elif "vit" in model_name.lower():
-        import timm
-        model_class = lambda: timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=len(CLASS_NAMES))
-    else:
-        raise ValueError("Unknown model type")
-
-    # ตรวจสอบว่าเป็น URL หรือไฟล์ local
-    if str(model_path).startswith("http"):
-        r = requests.get(model_path)
-        r.raise_for_status()
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.write(r.content)
-            tmp_path = f.name
-    else:
-        tmp_path = model_path
-
-    # โหลด state dict หรือทั้งโมเดล
-    state = torch.load(tmp_path, map_location="cpu")
-    if isinstance(state, dict) and "state_dict" in state:
-        model = model_class(*args, **kwargs)
-        model.load_state_dict(state["state_dict"])
-    elif isinstance(state, dict):
-        model = model_class(*args, **kwargs)
-        model.load_state_dict(state)
-    else:
-        model = state  # กรณี save ทั้งโมเดล
-    model.eval()
-    return model
 
 # ----------------- STREAMLIT UI -----------------
 st.title("White Blood Cell Classifier with Grad-CAM")
