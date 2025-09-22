@@ -336,15 +336,17 @@ st.image(image, caption="Selected image", use_container_width=True)
 
 # ----------------- PREDICTION + GRAD-CAM -----------------
 if st.button("Predict & Show Grad-CAM"):
+    try:
+        # โหลดโมเดล
+        model = load_model(model_name, model_path)
+    except Exception as e:
+        st.error(f"โหลดโมเดลไม่สำเร็จ: {e}")
+        st.stop()
+    
     transform = get_transform(model_name)
     img_tensor = transform(image).unsqueeze(0)
 
     size = 224 if "vit" in model_name.lower() else 128
-    model = load_model(model_name, model_path)
-if model is None:
-    st.error("โหลดโมเดลไม่สำเร็จ")
-    st.stop()
-
     unwrapped_model = unwrap_model(model)
     first_conv = get_first_conv_layer(unwrapped_model)
 
