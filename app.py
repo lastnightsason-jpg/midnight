@@ -1,5 +1,6 @@
 import streamlit as st
 import torch
+from lightning.fabric.wrappers import _FabricModule
 import torchvision.transforms as transforms
 from PIL import Image
 import os
@@ -8,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import requests
 import tempfile
+
 
 # ----------------- CONFIG -----------------
 MODEL_FILES = {
@@ -31,7 +33,11 @@ def load_model_state(model_name, model_path):
         buffer = model_path
 
     # โหลด state
-    state = torch.load(buffer, map_location="cpu")
+    from lightning.fabric.wrappers import _FabricModule
+    # โหลด checkpoint โดย allowlist Lightning wrapper
+    with torch.serialization.add_safe_globals([_FabricModule]):
+    state = torch.load(tmp_path, map_location="cpu", weights_only=False)
+
 
     # สร้างโมเดล class
     if "resnet" in model_name.lower():
