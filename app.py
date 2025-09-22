@@ -274,28 +274,40 @@ img_idx = st.selectbox("Select an image from archive or upload",
                        range(len(img_options)),
                        format_func=lambda i: img_options[i])
 
-image = None
-if img_idx == 0:
-    uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
-    if uploaded_file is not None:
-        try:
-            image = Image.open(uploaded_file).convert("RGB")
-        except Exception as e:
-            st.error(f"ไม่สามารถเปิดไฟล์รูปได้: {e}")
-else:
-    img_path = all_images[img_idx-1][1]
+images = []
+# โหลดไฟล์ที่อัปโหลด
+if 0 in selected_idx:
+    uploaded_files = st.file_uploader(
+        "Upload one or more images",
+        type=["jpg", "jpeg", "png"],
+        accept_multiple_files=True
+    )
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            try:
+                images.append(Image.open(uploaded_file).convert("RGB"))
+            except Exception as e:
+                st.error(f"ไม่สามารถเปิดไฟล์รูปได้: {e}")
+
+# โหลดไฟล์จาก archive
+for idx in selected_idx:
+    if idx == 0:  # skip อัปโหลดเพราะโหลดแล้ว
+        continue
+    img_path = all_images[idx-1][1]
     if os.path.exists(img_path):
         try:
-            image = Image.open(img_path).convert("RGB")
+            images.append(Image.open(img_path).convert("RGB"))
         except Exception as e:
             st.error(f"ไม่สามารถเปิดไฟล์รูปจาก archive ได้: {e}")
     else:
         st.error(f"ไฟล์รูปไม่พบ: {img_path}")
 
-if image is None or not isinstance(image, Image.Image):
+if not images:
     st.stop()
 
-st.image(image, caption="Selected image", use_container_width=True)
+# แสดงภาพทั้งหมด
+for i, img in enumerate(images):
+    st.image(img, caption=f"Image {i+1}", use_container_width=True)
 
 # ----------------- PREDICTION + GRAD-CAM -----------------
 if st.button("Predict & Show Grad-CAM"):
@@ -310,6 +322,10 @@ if st.button("Predict & Show Grad-CAM"):
 
     size = 224 if "vit" in model_name.lower() else 128
     unwrapped_model = unwrap_model(model)
+    
+    for idx, image in enumerate(images):
+        st.subheader(f"Processing Image {idx+1}")
+        img_tensor = transform(image).unsqueeze(0)
 
     # For non-ViT, ensure conv dtype exists
     if "vit" not in model_name.lower():
