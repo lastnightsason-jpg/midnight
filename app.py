@@ -310,10 +310,6 @@ if st.button("Predict & Show Grad-CAM"):
     size = 224 if "vit" in model_name.lower() else 128
     unwrapped_model = unwrap_model(model)
     
-    for idx, image in enumerate(images):
-        st.subheader(f"Processing Image {idx+1}")
-        img_tensor = transform(image).unsqueeze(0)
-
     # For non-ViT, ensure conv dtype exists
     if "vit" not in model_name.lower():
         first_conv = get_first_conv_layer(unwrapped_model)
