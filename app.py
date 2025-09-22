@@ -362,11 +362,18 @@ if st.button("Predict & Show Grad-CAM"):
         last_conv = get_last_conv_layer(unwrapped_model, model_name)
         if last_conv is not None:
             try:
-                cam_np, cam_img = generate_gradcam(unwrapped_model, img_tensor, last_conv, conv_dtype)
+                 cam_np, cam_img = generate_gradcam(unwrapped_model, img_tensor, last_conv, conv_dtype)
+
+                # resize cam_np ให้เท่ากับ input image size
+                from PIL import Image as PILImage
+                cam_resized = np.array(
+                     PILImage.fromarray((cam_np * 255).astype(np.uint8)).resize((size, size), resample=PILImage.BILINEAR)
+                ).astype(np.float32) / 255.0
                 img_np = np.array(image.resize((size, size))).astype(np.float32) / 255.0
-                heatmap = (cam_np - cam_np.min()) / (cam_np.max() - cam_np.min() + 1e-8)
+                heatmap = (cam_resized - cam_resized.min()) / (cam_resized.max() - cam_resized.min() + 1e-8)
                 heatmap_img = plt.get_cmap('jet')(heatmap)[..., :3]
                 overlay = np.clip(0.5 * img_np + 0.5 * heatmap_img, 0, 1)
+
                 st.subheader("Grad-CAM Visualization")
                 col1, col2, col3 = st.columns(3)
                 with col1:
