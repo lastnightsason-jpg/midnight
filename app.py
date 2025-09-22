@@ -160,6 +160,8 @@ def get_last_conv_layer(model, model_name):
 
 @st.cache_resource
 def load_model(model_name, model_path):
+    import torch, requests, tempfile
+    from lightning.fabric.wrappers import _FabricModule
     # เลือก class ของโมเดล
     if "resnet" in model_name.lower():
         from torchvision.models import resnet50
@@ -189,26 +191,24 @@ def load_model(model_name, model_path):
     else:
         tmp_path = model_path
 
-    try:
-        state = torch.load(tmp_path, map_location="cpu")
-    except Exception as e:
-        raise RuntimeError(f"โหลดไฟล์โมเดลไม่สำเร็จ: {e}")
+    # โหลด checkpoint โดย allowlist Lightning wrapper
+    with torch.serialization.add_safe_globals([_FabricModule]):
+        state = torch.load(tmp_path, map_location="cpu", weights_only=False)
 
-        # ถ้าเป็น checkpoint {'state_dict': ...}
+    # โหลด state_dict
     if isinstance(state, dict) and "state_dict" in state:
         model = model_class()
-        model.load_state_dict(state["state_dict"], strict=False)
-    # ถ้าเป็น state_dict โดยตรง (keys มี weight/bias)
+        ckpt = state["state_dict"]
+        ckpt = {k.replace("model.", ""): v for k, v in ckpt.items()}
+        model.load_state_dict(ckpt, strict=False)
     elif isinstance(state, dict) and any("weight" in k or "bias" in k for k in state.keys()):
         model = model_class()
         model.load_state_dict(state, strict=False)
-    # ถ้าเป็นโมเดลทั้งตัวที่บันทึกด้วย torch.save(model)
     else:
-        model = state
+        model = state  # full model
 
     model.eval()
     return model
-
 
 
 def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
