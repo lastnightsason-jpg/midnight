@@ -3,6 +3,7 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 import os
+import io
 import numpy as np
 import matplotlib.pyplot as plt
 import requests
@@ -19,7 +20,50 @@ MODEL_FILES = {
 
 CLASS_NAMES = ["basophil", "eosinophil", "lymphocyte", "monocyte", "neutrophil"]
 IMG_ROOT = "archive/Datasets"
+# ----------------- CONFIG -----------------
+def load_model_state(model_name, model_path):
+    # โหลดไฟล์จาก URL หรือ local
+    if str(model_path).startswith("http"):
+        r = requests.get(model_path)
+        r.raise_for_status()
+        buffer = io.BytesIO(r.content)
+    else:
+        buffer = model_path
 
+    # โหลด state
+    state = torch.load(buffer, map_location="cpu")
+
+    # สร้างโมเดล class
+    if "resnet" in model_name.lower():
+        from torchvision.models import resnet50
+        model = resnet50(num_classes=len(CLASS_NAMES))
+    elif "densenet" in model_name.lower():
+        from torchvision.models import densenet121
+        model = densenet121(num_classes=len(CLASS_NAMES))
+    elif "mobilenet" in model_name.lower():
+        from torchvision.models import mobilenet_v3_large
+        model = mobilenet_v3_large(num_classes=len(CLASS_NAMES))
+    elif "efficientnet" in model_name.lower():
+        from torchvision.models import efficientnet_b0
+        model = efficientnet_b0(num_classes=len(CLASS_NAMES))
+    elif "vit" in model_name.lower():
+        import timm
+        model = timm.create_model("vit_base_patch16_224", pretrained=False, num_classes=len(CLASS_NAMES))
+    else:
+        raise ValueError(f"Unknown model type: {model_name}")
+
+    # โหลด state_dict
+    if isinstance(state, dict) and "state_dict" in state:
+        ckpt = state["state_dict"]
+        ckpt = {k.replace("model.", ""): v for k, v in ckpt.items()}
+        model.load_state_dict(ckpt, strict=False)
+    elif isinstance(state, dict) and any("weight" in k or "bias" in k for k in state.keys()):
+        model.load_state_dict(state, strict=False)
+    else:
+        raise RuntimeError("โมเดลไฟล์นี้เป็น full model ไม่สามารถใช้กับ Streamlit cache ได้")
+
+    model.eval()
+    return model
 # ----------------- FUNCTIONS -----------------
 def vit_attention_rollout(model, img_tensor):
     model.eval()
