@@ -116,6 +116,67 @@ def get_last_conv_layer(model, model_name):
 
 @st.cache_resource
 def load_model(model_name, model_path):
+    import requests
+
+    # เลือก class ของโมเดล
+    if "resnet" in model_name.lower():
+        from torchvision.models import resnet50
+        model_class = lambda: resnet50(num_classes=len(CLASS_NAMES))
+    elif "densenet" in model_name.lower():
+        from torchvision.models import densenet121
+        model_class = lambda: densenet121(num_classes=len(CLASS_NAMES))
+    elif "mobilenet" in model_name.lower():
+        from torchvision.models import mobilenet_v3_large
+        model_class = lambda: mobilenet_v3_large(num_classes=len(CLASS_NAMES))
+    elif "efficientnet" in model_name.lower():
+        from torchvision.models import efficientnet_b0
+        model_class = lambda: efficientnet_b0(num_classes=len(CLASS_NAMES))
+    elif "vit" in model_name.lower():
+        import timm
+        model_class = lambda: timm.create_model("vit_base_patch16_224", pretrained=False, num_classes=len(CLASS_NAMES))
+    else:
+        raise ValueError(f"Unknown model type: {model_name}")
+
+    # โหลดไฟล์จาก URL หรือ local
+    if str(model_path).startswith("http"):
+        r = requests.get(model_path)
+        r.raise_for_status()
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(r.content)
+            tmp_path = f.name
+    else:
+        tmp_path = model_path
+
+    # 👇 Debug: ตรวจสอบว่า state โหลดออกมาเป็นอะไร
+    try:
+        state = torch.load(tmp_path, map_location="cpu")
+    except Exception as e:
+        raise RuntimeError(f"โหลดไฟล์โมเดลไม่สำเร็จ: {e}")
+
+    st.write("📂 Debug: type(state) =", type(state))
+    if isinstance(state, dict):
+        st.write("🔑 Keys ตัวอย่าง:", list(state.keys())[:20])
+
+    # ---- จัดการกรณีต่าง ๆ ----
+    if isinstance(state, dict) and "state_dict" in state:
+        # checkpoint lightning style
+        model = model_class()
+        ckpt = state["state_dict"]
+        # ลบ prefix 'model.' ถ้ามี
+        ckpt = {k.replace("model.", ""): v for k, v in ckpt.items()}
+        model.load_state_dict(ckpt, strict=False)
+    elif isinstance(state, dict) and any("weight" in k or "bias" in k for k in state.keys()):
+        # state_dict ปกติ
+        model = model_class()
+        model.load_state_dict(state, strict=False)
+    else:
+        # save ทั้งโมเดล
+        model = state
+
+    model.eval()
+    return model
+@st.cache_resource
+def load_model(model_name, model_path):
     # เลือก class ของโมเดล
     if "resnet" in model_name.lower():
         from torchvision.models import resnet50
