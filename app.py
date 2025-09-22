@@ -1,5 +1,6 @@
 import streamlit as st
 import torch
+import lightning.fabric.wrappers as lf
 import torchvision.transforms as transforms
 from PIL import Image
 import os
@@ -51,6 +52,20 @@ def load_model_state(model_name, model_path):
         model = timm.create_model("vit_base_patch16_224", pretrained=False, num_classes=len(CLASS_NAMES))
     else:
         raise ValueError(f"Unknown model type: {model_name}")
+
+    if str(model_path).startswith("http"):
+        r = requests.get(model_path)
+        r.raise_for_status()
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(r.content)
+            tmp_path = f.name
+    else:
+        tmp_path = model_path
+
+    # ✅ Allowlist _FabricModule class + force full pickle loading
+    import lightning.fabric.wrappers as lf
+    torch.serialization.add_safe_globals([lf._FabricModule])
+    state = torch.load(tmp_path, map_location="cpu", weights_only=False)
 
     # โหลด state_dict
     if isinstance(state, dict) and "state_dict" in state:
