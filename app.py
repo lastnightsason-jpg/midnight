@@ -257,7 +257,7 @@ st.title("White Blood Cell Classifier with Grad-CAM")
 model_name = st.selectbox("Select Model", list(MODEL_FILES.keys()))
 model_path = MODEL_FILES[model_name]
 
-# เลือกรูปจาก archive หรืออัปโหลด
+# ----------------- เลือกรูปจาก archive หรืออัปโหลด (หลายภาพ) -----------------
 all_images = []
 for cls in CLASS_NAMES:
     folder = os.path.join(IMG_ROOT, cls)
@@ -270,11 +270,19 @@ all_images.sort()
 img_options = [f"{cls}/{os.path.basename(path)}" for cls, path in all_images]
 img_options = ["[อัปโหลดรูปภาพของคุณเอง]"] + img_options
 
-img_idx = st.selectbox("Select an image from archive or upload",
-                       range(len(img_options)),
-                       format_func=lambda i: img_options[i])
+# Multi-select แทน selectbox
+selected_idx = st.multiselect(
+    "Select images from archive or upload",
+    range(len(img_options)),
+    format_func=lambda i: img_options[i]
+)
+
+# ถ้าไม่มีการเลือกใด ๆ ให้เป็น list ว่าง
+if selected_idx is None:
+    selected_idx = []
 
 images = []
+
 # โหลดไฟล์ที่อัปโหลด
 if 0 in selected_idx:
     uploaded_files = st.file_uploader(
@@ -309,6 +317,7 @@ if not images:
 for i, img in enumerate(images):
     st.image(img, caption=f"Image {i+1}", use_container_width=True)
 
+
 # ----------------- PREDICTION + GRAD-CAM -----------------
 if st.button("Predict & Show Grad-CAM"):
     try:
@@ -322,7 +331,7 @@ if st.button("Predict & Show Grad-CAM"):
 
     size = 224 if "vit" in model_name.lower() else 128
     unwrapped_model = unwrap_model(model)
-    
+
     for idx, image in enumerate(images):
         st.subheader(f"Processing Image {idx+1}")
         img_tensor = transform(image).unsqueeze(0)
