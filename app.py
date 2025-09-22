@@ -149,11 +149,7 @@ def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
         gradients.append(grad_out[0].detach())
 
     handle_fwd = target_layer.register_forward_hook(forward_hook)
-    # register_full_backward_hook is supported in newer torch; fallback to register_backward_hook if needed
-    try:
-        handle_bwd = target_layer.register_full_backward_hook(backward_hook)
-    except Exception:
-        handle_bwd = target_layer.register_backward_hook(lambda module, grad_in, grad_out: backward_hook(module, grad_in, grad_out))
+    handle_bwd = target_layer.register_full_backward_hook(backward_hook)
 
     output = model(img_tensor)
     pred_class = output.argmax(dim=1)
@@ -175,11 +171,7 @@ def generate_gradcam(model, img_tensor, target_layer, conv_dtype):
     cam_img = PILImage.fromarray(cam_img).resize((128, 128), resample=PILImage.BILINEAR)
 
     handle_fwd.remove()
-    if 'handle_bwd' in locals():
-        try:
-            handle_bwd.remove()
-        except Exception:
-            pass
+    handle_bwd.remove()
     return cam_np, cam_img
 
 def vit_attention_rollout(model, img_tensor):
