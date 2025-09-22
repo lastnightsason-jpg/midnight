@@ -340,6 +340,11 @@ if st.button("Predict & Show Grad-CAM"):
     img_tensor = transform(image).unsqueeze(0)
 
     size = 224 if "vit" in model_name.lower() else 128
+    model = load_model(model_name, model_path)
+if model is None:
+    st.error("โหลดโมเดลไม่สำเร็จ")
+    st.stop()
+
     unwrapped_model = unwrap_model(model)
     first_conv = get_first_conv_layer(unwrapped_model)
 
